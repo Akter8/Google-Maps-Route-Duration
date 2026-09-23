@@ -1,0 +1,6 @@
+{
+  "routes": [
+    {"id": "R1", "origin": "Example Park, Example City", "destination": "Example Station, Example City"},
+    {"id": "R2", "origin": "Example Library, Example City", "destination": "Example Museum, Example City"}
+  ]
+}
