@@ -2,6 +2,7 @@ create table if not exists public.traffic_observations (
   id bigint generated always as identity primary key, timestamp_utc timestamptz not null,
   timestamp_local timestamptz not null, date_local date not null, day_of_week text not null,
   scheduled_slot timestamptz not null, route_id text not null check (route_id ~ '^R[1-6]$'),
+  direction text not null check (direction in ('outbound', 'return')),
   duration_seconds double precision, static_duration_seconds double precision,
   traffic_delay_seconds double precision, distance_meters integer, api_success boolean not null,
   error_message text, created_at timestamptz not null default now(),

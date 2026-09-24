@@ -2,7 +2,7 @@
 from __future__ import annotations
 import argparse
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, time, timezone
 from .config import ConfigError, load_settings
 from .google_routes import GoogleRoutesClient, GoogleRoutesError
 from .scheduler import intended_slot, local_now
@@ -10,12 +10,19 @@ from .supabase_db import TrafficDatabase
 
 LOG = logging.getLogger("traffic_collector")
 
-def make_record(route_id: str, actual: datetime, slot: datetime, estimate=None, error: str | None = None) -> dict:
+def route_for_slot(route, slot: datetime) -> tuple[str, str, str]:
+    """Return the direction and endpoints to query for a scheduled local slot."""
+    if time(13) <= slot.time() < time(19):
+        return "return", route.destination, route.origin
+    return "outbound", route.origin, route.destination
+
+
+def make_record(route_id: str, direction: str, actual: datetime, slot: datetime, estimate=None, error: str | None = None) -> dict:
     duration = estimate.duration_seconds if estimate else None
     static = estimate.static_duration_seconds if estimate else None
     return {"timestamp_utc": actual.astimezone(timezone.utc).isoformat(), "timestamp_local": actual.isoformat(),
             "date_local": actual.date().isoformat(), "day_of_week": actual.strftime("%A"),
-            "scheduled_slot": slot.isoformat(), "route_id": route_id, "duration_seconds": duration,
+            "scheduled_slot": slot.isoformat(), "route_id": route_id, "direction": direction, "duration_seconds": duration,
             "static_duration_seconds": static, "traffic_delay_seconds": (duration - static) if estimate else None,
             "distance_meters": estimate.distance_meters if estimate else None, "api_success": estimate is not None,
             "error_message": error}
@@ -39,12 +46,13 @@ def collect(settings, now: datetime | None = None, force: bool = False, dry_run:
                 LOG.info("%s: already recorded for slot", route.id); continue
             if not db.reserve_google_request(month, settings.max_monthly_google_requests):
                 LOG.warning("Monthly Google request safety limit reached; stopping."); break
+            direction, origin, destination = route_for_slot(route, slot)
             try:
-                estimate = google.compute(route.origin, route.destination)
-                db.upsert_observation(make_record(route.id, actual, slot, estimate))
+                estimate = google.compute(origin, destination)
+                db.upsert_observation(make_record(route.id, direction, actual, slot, estimate))
                 LOG.info("%s: %.0fm %.0fs", route.id, estimate.duration_seconds // 60, estimate.duration_seconds % 60)
             except GoogleRoutesError as exc:
-                db.upsert_observation(make_record(route.id, actual, slot, error=str(exc)))
+                db.upsert_observation(make_record(route.id, direction, actual, slot, error=str(exc)))
                 LOG.warning("%s: request failed (%s)", route.id, exc)
         except Exception as exc:
             LOG.exception("%s: persistence failed (%s)", route.id, type(exc).__name__)
