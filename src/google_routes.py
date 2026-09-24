@@ -34,7 +34,9 @@ class GoogleRoutesClient:
         except requests.RequestException as exc:
             raise GoogleRoutesError(f"Google request failed: {type(exc).__name__}") from exc
         if not response.ok:
-            raise GoogleRoutesError(f"Google API HTTP {response.status_code}")
+            raise GoogleRoutesError(
+                f"Google API HTTP {response.status_code}: {response.text}"
+            )
         routes = response.json().get("routes", [])
         if not routes: raise GoogleRoutesError("Google returned no route")
         route = routes[0]
