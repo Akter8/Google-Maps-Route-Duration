@@ -43,7 +43,11 @@ def collect(settings, now: datetime | None = None, force: bool = False, dry_run:
     for route in settings.routes:
         try:
             if db.observation_exists(route.id, slot):
-                LOG.info("%s: already recorded for slot", route.id); continue
+                LOG.info("%s: already recorded for slot", route.id)
+                if force:
+                    LOG.info("%s: force=True, will redo", route.id)
+                else:
+                    continue
             if not db.reserve_google_request(month, settings.max_monthly_google_requests):
                 LOG.warning("Monthly Google request safety limit reached; stopping."); break
             direction, origin, destination = route_for_slot(route, slot)
