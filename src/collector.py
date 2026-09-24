@@ -54,6 +54,12 @@ def collect(settings, now: datetime | None = None, force: bool = False, dry_run:
             except GoogleRoutesError as exc:
                 db.upsert_observation(make_record(route.id, direction, actual, slot, error=str(exc)))
                 LOG.warning("%s: request failed (%s)", route.id, exc)
+                LOG.warning(
+                    "%s: request failed (Google API HTTP %s): %s",
+                    route.id,
+                    estimate.status_code,
+                    estimate.text,
+                )
         except Exception as exc:
             LOG.exception("%s: persistence failed (%s)", route.id, type(exc).__name__)
     return 0
