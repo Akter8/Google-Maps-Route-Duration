@@ -1,6 +1,8 @@
 .env
 .env.*
 !.env.example
+logs/
+run/
 *.db
 *.sqlite
 *.sqlite3

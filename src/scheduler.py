@@ -20,10 +20,10 @@ def scheduled_slots(day: datetime) -> list[datetime]:
     return result
 
 def intended_slot(now: datetime, tolerance_minutes: int = 7) -> datetime | None:
-    """Nearest permitted local slot within tolerance; `now` must be timezone aware."""
+    """Most recent permitted local slot within tolerance; `now` must be timezone aware."""
     if now.tzinfo is None:
         raise ValueError("now must be timezone-aware")
-    candidates = scheduled_slots(now)
+    candidates = [slot for slot in scheduled_slots(now) if slot <= now]
     if not candidates:
         return None
     nearest = min(candidates, key=lambda slot: abs((now - slot).total_seconds()))

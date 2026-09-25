@@ -1,14 +1,14 @@
 # Traffic travel-time tracker
 
-A private-route, traffic-aware commute observation system. GitHub Actions invokes a Python collector every five minutes on weekdays; the application converts the actual execution time to a Los Angeles sampling slot, avoids duplicates, queries Google Compute Routes, and writes only non-identifying measurements to Supabase.
+A private-route, traffic-aware commute observation system. The Python collector runs locally from Linux cron (or can run from the existing GitHub Actions workflow), converts the actual execution time to a Los Angeles sampling slot, avoids duplicates, queries Google Compute Routes, and writes only non-identifying measurements to Supabase.
 
 ## Setup
 
 1. Create a Supabase project and run [`supabase_schema.sql`](supabase_schema.sql) in its SQL Editor.
 2. In Google Cloud, enable **Routes API**, attach billing, create a server API key restricted to Routes API, and configure a budget alert and quota.
-3. Add these GitHub Actions repository secrets: `GOOGLE_MAPS_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `ROUTES_JSON`.
+3. For local cron, create an owner-only environment file at `~/.config/traffic-collector/collector.env` from [`config/collector.env.example`](config/collector.env.example). It contains `GOOGLE_MAPS_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `ROUTES_JSON`.
 4. Make `ROUTES_JSON` a compact private value such as `{"routes":[{"id":"R1","origin":"private origin","destination":"private destination"}]}`. Never commit it, a `.env`, addresses, or keys.
-5. Enable Actions. The workflow runs every five minutes on weekdays and exits harmlessly outside a sampling slot. Use its `force` input only for a deliberate test.
+5. Install the local cron schedule described below. The GitHub Actions workflow remains in the repository unchanged; disable it in GitHub if you do not want a second runner attempting the same slots. The Supabase uniqueness constraint prevents duplicate measurements, but running both wastes API-request quota.
 
 Only route IDs (`R1`–`R6`) and measurements reach `traffic_observations`; addresses are never logged or stored. Before each route call, the collector checks for an existing slot and atomically reserves a request in Supabase. Its unique `(route_id, scheduled_slot)` constraint makes retries idempotent.
 
@@ -29,6 +29,23 @@ python analysis/export_csv.py --route-id R1 --start-date 2026-09-01 --end-date 2
 ```
 
 Dry run needs only `ROUTES_JSON` and writes/calls nothing. `--force` bypasses only scheduling. Export supports date, route, weekday, and time filters.
+
+## Local Linux cron
+
+The local runner loads credentials from `~/.config/traffic-collector/collector.env`, writes operational output to `~/.local/state/traffic-collector/collector.log`, and uses `flock` so a delayed cron run cannot overlap the next one. It runs exactly at the valid weekday sampling slots in `America/Los_Angeles`, including across DST changes.
+
+```bash
+python -m venv .venv && .venv/bin/pip install -r requirements.txt
+mkdir -p ~/.config/traffic-collector
+cp config/collector.env.example ~/.config/traffic-collector/collector.env
+chmod 600 ~/.config/traffic-collector/collector.env
+# Edit collector.env locally with your real keys and routes.
+chmod +x scripts/run_collector.sh scripts/install_cron.sh
+scripts/run_collector.sh --dry-run
+scripts/install_cron.sh
+```
+
+Confirm the installed schedule with `crontab -l`; watch runs with `tail -f ~/.local/state/traffic-collector/collector.log`. To remove it, run `crontab -e` and delete the lines from `# BEGIN traffic-collector` through `# END traffic-collector`. Cron must be enabled for your Linux user (for example, `systemctl status cron` or `systemctl status crond`).
 
 ## Cost and references
 

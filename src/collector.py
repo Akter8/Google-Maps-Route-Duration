@@ -28,6 +28,8 @@ def make_record(route_id: str, direction: str, actual: datetime, slot: datetime,
             "error_message": error}
 
 def collect(settings, now: datetime | None = None, force: bool = False, dry_run: bool = False) -> int:
+    LOG.info("")
+    LOG.info("Starting new collect round.")
     actual = now or local_now(settings.timezone)
     slot = intended_slot(actual, settings.slot_tolerance_minutes)
     if not slot and not force:
@@ -64,7 +66,7 @@ def collect(settings, now: datetime | None = None, force: bool = False, dry_run:
 
 def main() -> int:
     parser = argparse.ArgumentParser(); parser.add_argument("--dry-run", action="store_true"); parser.add_argument("--force", action="store_true")
-    args = parser.parse_args(); logging.basicConfig(level=logging.INFO, format="%(name)s %(levelname)s: %(message)s")
+    args = parser.parse_args(); logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s: %(message)s")
     try: return collect(load_settings(require_services=not args.dry_run), force=args.force, dry_run=args.dry_run)
     except ConfigError as exc: LOG.error("Configuration error: %s", exc); return 2
 
